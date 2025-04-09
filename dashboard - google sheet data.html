@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Social Media Moderation Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Roboto', sans-serif; }
+    h1 { font-size: 2.25rem; font-weight: 700; }
+    h2 { font-size: 1.5rem; font-weight: 700; }
+    h3 { font-size: 1.125rem; font-weight: 500; }
+    p, td, th { font-size: 1rem; font-weight: 400; }
+    .text-3xl { font-weight: 700; }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div id="root" class="p-6"></div>
+
+  <script type="text/babel">
+    const StatCard = ({ title, value, color }) => (
+      <div className={`p-4 bg-white rounded-lg shadow-md text-center ${color}`}>
+        <h3 className="text-lg font-semibold">{title}</h3>
+        <p className="text-3xl font-bold">{value}</p>
+      </div>
+    );
+
+    const TrendChart = ({ trend }) => {
+      React.useEffect(() => {
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: trend.days,
+            datasets: [
+              { label: 'Content vi phạm', data: trend.violated, borderColor: '#ef4444', fill: false },
+              { label: 'Đã xử lý', data: trend.processed, borderColor: '#10b981', fill: false },
+              { label: 'Bị kháng nghị', data: trend.appealed, borderColor: '#f59e0b', fill: false },
+              { label: 'Xử lý sai', data: trend.misprocessed, borderColor: '#8b5cf6', fill: false },
+            ],
+          },
+          options: { scales: { y: { beginAtZero: true } } },
+        });
+      }, [trend]);
+      return <canvas id="trendChart" className="mt-6 max-w-2xl mx-auto"></canvas>;
+    };
+
+    const TeamTable = ({ team }) => (
+      <div className="mt-6 bg-white rounded-lg shadow-md p-4">
+        <h2 className="text-xl font-bold mb-4">Hiệu suất đội kiểm duyệt</h2>
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-gray-200">
+              <th className="p-2">Admin</th>
+              <th className="p-2">Đã xử lý</th>
+              <th className="p-2">Bị kháng nghị</th>
+              <th className="p-2">Xử lý sai</th>
+              <th className="p-2">Thời gian TB</th>
+            </tr>
+          </thead>
+          <tbody>
+            {team.map(admin => (
+              <tr key={admin.Name} className="border-t">
+                <td className="p-2">{admin.Name}</td>
+                <td className="p-2">{admin.Processed}</td>
+                <td className="p-2">{admin.Appealed}</td>
+                <td className="p-2">{admin.Misprocessed}</td>
+                <td className="p-2">{admin.AvgTime}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+
+    const AccountTable = ({ accounts }) => (
+      <div className="mt-6 bg-white rounded-lg shadow-md p-4">
+        <h2 className="text-xl font-bold mb-4">Top tài khoản vi phạm</h2>
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-gray-200">
+              <th className="p-2">Tài khoản</th>
+              <th className="p-2">Số lần vi phạm</th>
+              <th className="p-2">Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            {accounts.map(account => (
+              <tr key={account.ID} className="border-t">
+                <td className="p-2">{account.ID}</td>
+                <td className="p-2">{account.Violations}</td>
+                <td className="p-2">{account.Status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+
+    const AccountStatusChart = ({ accounts }) => {
+      React.useEffect(() => {
+        const statusCounts = accounts.reduce((acc, accnt) => {
+          acc[accnt.Status] = (acc[accnt.Status] || 0) + 1;
+          return acc;
+        }, {});
+        const total = accounts.length;
+        const ctx = document.getElementById('statusChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'pie',
+          data: {
+            labels: Object.keys(statusCounts),
+            datasets: [{
+              data: Object.values(statusCounts),
+              backgroundColor: ['#ef4444', '#f59e0b', '#10b981', '#3b82f6'],
+            }],
+          },
+          options: {
+            plugins: {
+              legend: { position: 'right' },
+              tooltip: {
+                callbacks: {
+                  label: (context) => {
+                    const value = context.raw;
+                    const percentage = ((value / total) * 100).toFixed(1);
+                    return `${context.label}: ${value} (${percentage}%)`;
+                  },
+                },
+              },
+            },
+          },
+        });
+      }, [accounts]);
+      return <canvas id="statusChart" className="mt-6 max-w-sm mx-auto"></canvas>;
+    };
+
+    const CategoryChart = ({ categories }) => {
+      React.useEffect(() => {
+        const ctx = document.getElementById('categoryChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: categories.map(c => c.Category),
+            datasets: [{
+              label: 'Số lượng',
+              data: categories.map(c => c.Count),
+              backgroundColor: '#3b82f6',
+            }],
+          },
+          options: {
+            indexAxis: 'y',
+            scales: { x: { beginAtZero: true } },
+            plugins: { legend: { display: false } },
+            maintainAspectRatio: false,
+          },
+        });
+      }, [categories]);
+      return <div className="mt-6 overflow-x-auto"><canvas id="categoryChart" style={{ height: '400px', minWidth: '800px' }}></canvas></div>;
+    };
+
+    const ContentTable = ({ contents }) => (
+      <div className="mt-6 bg-white rounded-lg shadow-md p-4">
+        <h2 className="text-xl font-bold mb-4">Chi tiết nội dung gần đây</h2>
+        <table className="w-full text-left">
+          <thead>
+            <tr className="bg-gray-200">
+              <th className="p-2">ID</th>
+              <th className="p-2">Tiêu đề</th>
+              <th className="p-2">Trạng thái</th>
+              <th className="p-2">Loại vi phạm</th>
+              <th className="p-2">Admin</th>
+              <th className="p-2">Ngày</th>
+              <th className="p-2">Lý do</th>
+            </tr>
+          </thead>
+          <tbody>
+            {contents.map(content => (
+              <tr key={content.ID} className="border-t">
+                <td className="p-2">{content.ID}</td>
+                <td className="p-2">{content.Title}</td>
+                <td className="p-2">{content.Status}</td>
+                <td className="p-2">{content.Type}</td>
+                <td className="p-2">{content.Admin || "Chưa xử lý"}</td>
+                <td className="p-2">{content.Date}</td>
+                <td className="p-2">{content.Reason}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+
+    const Alerts = ({ alerts }) => (
+      <div className="mt-6 p-4 bg-red-100 rounded-lg shadow-md text-center">
+        <h2 className="text-xl font-bold text-red-600">
+          Cảnh báo: {alerts[0].Pending} nội dung đang chờ duyệt (vượt ngưỡng {alerts[0].Threshold})
+        </h2>
+      </div>
+    );
+
+    const Dashboard = () => {
+      const [data, setData] = React.useState(null);
+      const [sheetUrl, setSheetUrl] = React.useState('');
+      const [error, setError] = React.useState('');
+
+      const fetchDataFromSheet = async (url) => {
+        setError('');
+        if (!url.includes('docs.google.com/spreadsheets')) {
+          setError('Link không hợp lệ. Vui lòng nhập URL Google Sheet công khai.');
+          return;
+        }
+
+        try {
+          const sheetIdMatch = url.match(/\/d(?:\/e)?\/(.+?)(?:\/|$)/);
+          if (!sheetIdMatch) {
+            setError('Không tìm thấy Sheet ID trong URL.');
+            return;
+          }
+          const sheetId = sheetIdMatch[1];
+          const tabs = ['Overview', 'Team', 'Accounts', 'Categories', 'ContentDetails', 'Alerts'];
+          const fetchedData = {};
+
+          for (const tab of tabs) {
+            const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${tab}`;
+            console.log(`Fetching: ${csvUrl}`); // Debug URL
+            const response = await fetch(csvUrl);
+            if (!response.ok) {
+              throw new Error(`Lỗi HTTP ${response.status} khi tải tab ${tab}. Kiểm tra mạng hoặc sheet có công khai không.`);
+            }
+            const text = await response.text();
+            if (!text || text.length < 10) {
+              throw new Error(`Tab ${tab} không trả về dữ liệu hợp lệ. Kiểm tra nội dung tab.`);
+            }
+            const rows = text.split('\n').map(row => row.split(',').map(cell => cell.replace(/"/g, '').trim()));
+            if (rows.length < 2) {
+              throw new Error(`Tab ${tab} không có dữ liệu hoặc định dạng không đúng (cần ít nhất 2 dòng).`);
+            }
+
+            const headers = rows[0];
+            const dataRows = rows.slice(1).filter(row => row.some(cell => cell));
+
+            if (tab === 'Overview') {
+              fetchedData.overview = {
+                total: {
+                  violated: parseInt(dataRows[dataRows.length - 1][1]) || 0,
+                  processed: parseInt(dataRows[dataRows.length - 1][2]) || 0,
+                  appealed: parseInt(dataRows[dataRows.length - 1][3]) || 0,
+                  misprocessed: parseInt(dataRows[dataRows.length - 1][4]) || 0,
+                  avgTime: "2.5 phút"
+                },
+                trend: {
+                  days: dataRows.map(row => row[0]),
+                  violated: dataRows.map(row => parseInt(row[1]) || 0),
+                  processed: dataRows.map(row => parseInt(row[2]) || 0),
+                  appealed: dataRows.map(row => parseInt(row[3]) || 0),
+                  misprocessed: dataRows.map(row => parseInt(row[4]) || 0),
+                },
+              };
+            } else {
+              fetchedData[tab.toLowerCase()] = dataRows.map(row => {
+                const obj = {};
+                headers.forEach((header, i) => obj[header] = row[i]);
+                return obj;
+              });
+            }
+          }
+          setData(fetchedData);
+        } catch (error) {
+          setError(error.message || 'Có lỗi khi tải dữ liệu. Vui lòng kiểm tra mạng hoặc sheet.');
+        }
+      };
+
+      const handleFetchData = () => {
+        if (sheetUrl) fetchDataFromSheet(sheetUrl);
+      };
+
+      if (!data) {
+        return (
+          <div className="text-center">
+            <h1 className="text-3xl font-bold mb-6">Dashboard Kiểm duyệt Mạng Xã Hội</h1>
+            <div className="mb-4">
+              <p className="text-lg mb-2">Nhập link Google Sheet công khai (đã publish):</p>
+              <input
+                type="text"
+                placeholder="Ví dụ: https://docs.google.com/spreadsheets/d/[SHEET_ID]/pubhtml"
+                value={sheetUrl}
+                onChange={(e) => setSheetUrl(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleFetchData()}
+                className="p-2 border rounded w-3/4 mb-4"
+              />
+              <button
+                onClick={handleFetchData}
+                className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600 ml-2"
+              >
+                Tải dữ liệu
+              </button>
+            </div>
+            {error && <p className="text-red-600">{error}</p>}
+            <div className="text-left max-w-2xl mx-auto">
+              <h3 className="text-xl font-semibold mb-2">Hướng dẫn:</h3>
+              <ul className="list-disc pl-5">
+                <li>1. Tạo Google Sheet với các tab: Overview, Team, Accounts, Categories, ContentDetails, Alerts.</li>
+                <li>2. Format dữ liệu: Overview (Day,Violated,Processed,Appealed,Misprocessed), Team (Name,Processed,Appealed,Misprocessed,AvgTime), v.v.</li>
+                <li>3. Vào File > Publish to the web > chọn "Entire Document" > nhấn Publish.</li>
+                <li>4. Copy URL công khai và dán vào ô trên.</li>
+              </ul>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div>
+          <h1 className="text-3xl font-bold mb-6 text-center">Dashboard Kiểm duyệt Mạng Xã Hội</h1>
+          <h2 className="text-2xl font-semibold mb-4">Tổng quan</h2>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <StatCard title="Content vi phạm" value={data.overview.total.violated} color="text-red-600" />
+            <StatCard title="Đã xử lý" value={data.overview.total.processed} color="text-green-600" />
+            <StatCard title="Bị kháng nghị" value={data.overview.total.appealed} color="text-yellow-600" />
+            <StatCard title="Xử lý sai" value={data.overview.total.misprocessed} color="text-purple-600" />
+            <StatCard title="Thời gian TB" value={data.overview.total.avgTime} color="text-blue-600" />
+          </div>
+          <TrendChart trend={data.overview.trend} />
+          <TeamTable team={data.team} />
+          <AccountTable accounts={data.accounts} />
+          <AccountStatusChart accounts={data.accounts} />
+          <div className="mt-6">
+            <h2 className="text-2xl font-semibold mb-4">Thống kê loại vi phạm</h2>
+            <CategoryChart categories={data.categories} />
+          </div>
+          <ContentTable contents={data.contentdetails} />
+          {data.alerts[0].Pending > data.alerts[0].Threshold && <Alerts alerts={data.alerts} />}
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Dashboard />);
+  </script>
+</body>
+</html>
